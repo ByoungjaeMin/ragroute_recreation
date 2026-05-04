@@ -1,0 +1,82 @@
+# -----------------------------------------------------------------------
+# Data — large files and generated artifacts never go to GitHub
+# -----------------------------------------------------------------------
+
+# Raw corpora (MedRAG corpus chunks, Wikipedia snippets — too large)
+data/raw/
+
+# Generated embeddings (.npy), FAISS indices (.faiss), chunk JSONs
+data/embeddings/
+
+# Processed training data (X_train/y_train/... .npy, split JSONs)
+data/processed/
+
+# FAISS stats files (centroid/cluster_stats JSONs)
+data/stats/
+
+# Benchmark files from the original RAGRoute repo — license-sensitive,
+# must be copied manually (MIRAGE.json, question_order_*.json)
+data/benchmark/
+data/question_order_*.json
+
+# External repos cloned by setup scripts
+external/
+
+# -----------------------------------------------------------------------
+# Model checkpoints and scalers
+# -----------------------------------------------------------------------
+checkpoints/
+
+# -----------------------------------------------------------------------
+# Evaluation results
+# -----------------------------------------------------------------------
+results/
+
+# -----------------------------------------------------------------------
+# Python
+# -----------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+.env
+
+# -----------------------------------------------------------------------
+# ML artifacts
+# -----------------------------------------------------------------------
+*.pth
+*.pkl
+*.npy
+*.faiss
+
+# Jupyter notebooks — keep the colab notebook, ignore checkpoints
+.ipynb_checkpoints/
+
+# -----------------------------------------------------------------------
+# OS / IDE
+# -----------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# -----------------------------------------------------------------------
+# Pytest cache
+# -----------------------------------------------------------------------
+.pytest_cache/
+.coverage
+htmlcov/

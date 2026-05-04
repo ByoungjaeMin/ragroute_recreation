@@ -1,0 +1,47 @@
+dataset: wikipedia
+benchmark: MMLU
+k_eval: 10
+
+embedding:
+  query_encoder: facebook/dpr-question_encoder-single-nq-base
+  pooling: pooler_output
+  dim: 768
+  n_clusters: 10
+  kmeans_seed: 42
+
+index:
+  type: IndexFlatIP
+  normalize: true
+  dim: 768
+
+train:
+  seed: 42
+  batch_size: 128
+  epochs: 150
+  lr_base: 1.0e-3
+  lr_max: 5.0e-3
+  weight_decay: 1.0e-5
+  grad_clip: 1.0
+  cyclic_step_up: 10
+  cyclic_mode: triangular2
+  cyclic_cutoff: 115
+  step_lr_step: 50
+  step_lr_gamma: 0.05
+  best_metric: val_f1
+  use_pos_weight: true
+  pos_weight_scale: 5.0
+
+router:
+  threshold: 0.5
+  input_dim: 1546
+
+retrieval:
+  label_k: 15
+  k_retrieve: 50
+
+paths:
+  embeddings_dir: data/embeddings/mmlu
+  processed_dir: data/processed/mmlu
+  stats_dir: data/stats
+  checkpoint_dir: checkpoints
+  results_dir: results

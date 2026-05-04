@@ -1,0 +1,45 @@
+dataset: medrag
+benchmark: MIRAGE
+k_eval: 32
+
+embedding:
+  query_encoder: ncbi/MedCPT-Query-Encoder
+  article_encoder: ncbi/MedCPT-Article-Encoder
+  pooling: cls
+  max_length: 512
+
+index:
+  type: IndexFlatL2
+  dim: 768
+
+train:
+  seed: 12
+  batch_size: 128
+  epochs: 150
+  lr_base: 1.0e-3
+  lr_max: 5.0e-3
+  weight_decay: 3.0e-5
+  grad_clip: 1.0
+  cyclic_step_up: 10
+  cyclic_mode: triangular2
+  cyclic_cutoff: 115
+  step_lr_step: 50
+  step_lr_gamma: 0.05
+  best_metric: val_auc
+  use_pos_weight: false
+
+router:
+  threshold: 0.5
+  input_dim: 1540
+
+retrieval:
+  label_k: 15
+  k_retrieve: 50
+
+paths:
+  embeddings_dir: data/embeddings/mirage
+  processed_dir: data/processed/mirage
+  stats_dir: data/stats
+  checkpoint_dir: checkpoints
+  results_dir: results
+  benchmark_file: data/benchmark/MIRAGE.json
