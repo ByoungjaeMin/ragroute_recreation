@@ -111,22 +111,23 @@ def _load_medrag_corpus(corpus_dir: str):
     """
     import glob
 
-    chunk_files = sorted(glob.glob(os.path.join(corpus_dir, "*.json")))
+    chunk_files = sorted(glob.glob(os.path.join(corpus_dir, "*.json")) +
+                         glob.glob(os.path.join(corpus_dir, "*.jsonl")))
     if not chunk_files:
-        raise FileNotFoundError(f"No JSON chunk files found in {corpus_dir}")
+        raise FileNotFoundError(f"No JSON/JSONL chunk files found in {corpus_dir}")
 
     chunks = []
     texts = []
     for fpath in tqdm(chunk_files, desc=f"Loading {os.path.basename(corpus_dir)}", leave=False):
         with open(fpath, "r") as f:
-            data = json.load(f)
-        if isinstance(data, list):
-            for item in data:
-                chunks.append(item)
-                texts.append(f"{item.get('title', '')} {item.get('content', '')}".strip())
-        else:
-            chunks.append(data)
-            texts.append(f"{data.get('title', '')} {data.get('content', '')}".strip())
+            if fpath.endswith(".jsonl"):
+                items = [json.loads(l) for l in f if l.strip()]
+            else:
+                data = json.load(f)
+                items = data if isinstance(data, list) else [data]
+        for item in items:
+            chunks.append(item)
+            texts.append(f"{item.get('title', '')} {item.get('content', '')}".strip())
 
     return chunks, texts
 

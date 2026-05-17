@@ -130,15 +130,17 @@ def load_mmlu_questions(split_dict: Dict[str, str], emb_dir: str) -> List[Dict]:
 # ---------------------------------------------------------------------------
 
 def call_llm(system_prompt: str, user_prompt: str, llm_cfg: Dict) -> str:
-    import ollama
-    response = ollama.chat(
-        model=llm_cfg["ollama_model"],
+    from openai import OpenAI
+    client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
+    response = client.chat.completions.create(
+        model=llm_cfg["vllm_model"],
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": user_prompt},
         ],
+        max_tokens=512,
     )
-    return response.message.content
+    return response.choices[0].message.content
 
 
 def build_user_prompt(question: str, options: Dict[str, str], chunks: List[Any]) -> str:

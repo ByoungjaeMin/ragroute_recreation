@@ -102,12 +102,14 @@ class RAGPipeline:
         return self._tokenizer
 
     def _call_llm(self, system_prompt: str, user_prompt: str) -> str:
-        import ollama
-        response = ollama.chat(
-            model=self.llm_config["ollama_model"],
+        from openai import OpenAI
+        client = OpenAI(base_url=self.llm_config["base_url"], api_key=self.llm_config["api_key"])
+        response = client.chat.completions.create(
+            model=self.llm_config["vllm_model"],
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user",   "content": user_prompt},
             ],
+            max_tokens=512,
         )
-        return response.message.content
+        return response.choices[0].message.content

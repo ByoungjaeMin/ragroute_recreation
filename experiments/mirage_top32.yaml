@@ -30,7 +30,7 @@ train:
 
 router:
   threshold: 0.5
-  input_dim: 1540
+  input_dim: 1538
 
 retrieval:
   label_k: 15

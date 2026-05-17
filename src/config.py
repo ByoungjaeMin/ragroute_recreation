@@ -4,19 +4,22 @@ import os
 # Data sources
 # ---------------------------------------------------------------------------
 
+# DEVIATION FROM ORIGINAL: Colab resource constraints
+# Original: ["pubmed", "statpearls", "textbooks", "wikipedia"] — 4 corpora, INPUT_DIM=1540
+# This impl: ["textbooks", "statpearls"] — 2 corpora, INPUT_DIM=1538 (matches sacs-epfl Colab setup)
 DATA_SOURCES = {
-    "medrag":    ["pubmed", "statpearls", "textbooks", "wikipedia"],
+    "medrag":    ["textbooks", "statpearls"],
     "wikipedia": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
 }
 
 # Maps corpus name → one-hot index (medrag only)
 MEDRAG_SOURCE_TO_ID = {
-    "pubmed": 0, "statpearls": 1, "textbooks": 2, "wikipedia": 3,
+    "textbooks": 0, "statpearls": 1,
 }
 
 # Router input dim = 768 (query) + 768 (centroid) + n_sources (one-hot)
 INPUT_DIM = {
-    "medrag":    1540,   # 768 + 768 + 4
+    "medrag":    1538,   # 768 + 768 + 2
     "wikipedia": 1546,   # 768 + 768 + 10
 }
 
@@ -86,11 +89,15 @@ MMLU_TARGET_SUBJECTS = {
 # LLM
 # ---------------------------------------------------------------------------
 
+# DEVIATION FROM ORIGINAL: Ollama → vLLM (OpenAI-compatible API)
+# Original: ollama.chat() at localhost:11434
+# This impl: openai.OpenAI() at localhost:8000/v1 (vLLM server, matches sacs-epfl Colab setup)
 LLM_CONFIG = {
-    "ollama_model":        "llama3.1:8b",
-    "hf_name":             "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "vllm_model":          "unsloth/Meta-Llama-3.1-8B-Instruct",
+    "hf_name":             "unsloth/Meta-Llama-3.1-8B-Instruct",
     "docs_context_length": 128000,
-    "base_url":            "http://localhost:11434",
+    "base_url":            "http://localhost:8000/v1",
+    "api_key":             "dummy",
     "disable_rerank":      True,
 }
 
