@@ -31,6 +31,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import (
     CHECKPOINT_DIR,
+    DATA_SOURCES,
     EMBEDDINGS_DIR,
     INPUT_DIM,
     PROCESSED_DIR,
@@ -55,7 +56,7 @@ PAPER_TARGETS_MIRAGE = {
 }
 PAPER_TARGETS_MMLU = {"no_rag": 66.67, "rag_all": 68.18, "ragroute": 70.45}
 
-MEDRAG_CORPORA = ["pubmed", "statpearls", "textbooks", "wikipedia"]
+MEDRAG_CORPORA = DATA_SOURCES["medrag"]
 
 FIGURES_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "figures")
 

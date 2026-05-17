@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import (
     BENCHMARK_DIR,
     DATA_DIR,
+    DATA_SOURCES,
     EMBEDDINGS_DIR,
     K_RETRIEVE,
     LLM_CONFIG,
@@ -46,7 +47,7 @@ from src.utils import (
 )
 
 
-MEDRAG_CORPORA = ["pubmed", "statpearls", "textbooks", "wikipedia"]
+MEDRAG_CORPORA = DATA_SOURCES["medrag"]
 MIRAGE_BENCHMARKS = ["pubmedqa", "medqa", "bioasq", "medmcqa", "mmlu-med"]
 
 

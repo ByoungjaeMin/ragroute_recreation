@@ -25,10 +25,10 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.config import EMBEDDINGS_DIR, STATS_DIR
+from src.config import DATA_SOURCES, EMBEDDINGS_DIR, STATS_DIR
 
 
-MEDRAG_CORPORA = ["pubmed", "statpearls", "textbooks", "wikipedia"]
+MEDRAG_CORPORA = DATA_SOURCES["medrag"]
 
 
 # ---------------------------------------------------------------------------

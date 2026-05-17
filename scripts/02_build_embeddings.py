@@ -32,6 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.config import (
     BENCHMARK_DIR,
     DATA_DIR,
+    DATA_SOURCES,
     EMBEDDINGS_DIR,
     MMLU_TARGET_SUBJECTS,
     RAW_DIR,
@@ -45,7 +46,7 @@ from src.embedding_model import EmbeddingModel
 
 MIRAGE_BENCHMARKS = ["pubmedqa", "medqa", "bioasq", "medmcqa", "mmlu-med"]
 
-MEDRAG_CORPORA = ["pubmed", "statpearls", "textbooks", "wikipedia"]
+MEDRAG_CORPORA = DATA_SOURCES["medrag"]
 
 
 def build_medrag_embeddings(out_dir: str) -> None:

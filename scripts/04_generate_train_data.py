@@ -29,6 +29,7 @@ import yaml
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import (
+    DATA_SOURCES,
     EMBEDDINGS_DIR,
     LABEL_K,
     STATS_DIR,
@@ -37,7 +38,7 @@ from src.data_source import DataSource
 from src.router_trainer import RouterTrainer
 
 
-MEDRAG_CORPORA = ["pubmed", "statpearls", "textbooks", "wikipedia"]
+MEDRAG_CORPORA = DATA_SOURCES["medrag"]
 
 
 def _load_query_embeddings(emb_path: str, ids_path: str) -> tuple[np.ndarray, list[str]]:

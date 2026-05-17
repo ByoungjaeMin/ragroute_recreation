@@ -11,15 +11,29 @@
 
 원본 레포는 EPFL NFS 클러스터 전용 코드다. 그대로 실행 불가.
 
-| 항목 | 원본 레포 | 이 구현 |
-|------|---------|--------|
-| 아키텍처 | ZMQ 기반 멀티프로세스 분산 서버 | 단일 프로세스 클래스 구조 |
-| 경로 | `/mnt/nfs/home/dpetresc` 하드코딩 | 로컬 상대경로 |
-| 사전 계산 파일 | 저자 생성 `.pkl`, `.pth`, `emb_queries/*.npy` 의존 | 파이프라인으로 직접 생성 |
-| 실행 방식 | `main.py` 서버 + `run_benchmark.py` 분리 | 스크립트 순차 실행 |
-| 임베딩 클래스 | `CustomizeSentenceTransformer` (CLS pooling 커스텀) | HuggingFace 직접 호출 + CLS pooling |
+### 구조적 차이 (원본부터 변경)
 
-**레포에서 그대로 가져오는 것**: `CorpusRoutingNN` 아키텍처, feature 구성, 학습 하이퍼파라미터, data split 방식, config 값들.
+| 항목 | 원본 레포 | 이 구현 | 이유 |
+|------|---------|--------|------|
+| 아키텍처 | ZMQ 기반 멀티프로세스 분산 서버 | 단일 프로세스 클래스 구조 | 로컬 환경 |
+| 경로 | `/mnt/nfs/home/dpetresc` 하드코딩 | 로컬 상대경로 | 로컬 환경 |
+| 사전 계산 파일 | 저자 생성 `.pkl`, `.pth`, `emb_queries/*.npy` 의존 | 파이프라인으로 직접 생성 | 저자 파일 없음 |
+| 실행 방식 | `main.py` 서버 + `run_benchmark.py` 분리 | 스크립트 순차 실행 | 로컬 환경 |
+| 임베딩 클래스 | `CustomizeSentenceTransformer` (CLS pooling 커스텀) | HuggingFace AutoModel + CLS pooling 직접 구현 | 의존성 단순화 |
+
+### Colab 실행을 위한 추가 변경 (원본 sacs-epfl Colab 노트북 기준)
+
+| 항목 | 원본 레포 (전체) | 이 구현 (Colab) | 이유 |
+|------|---------|--------|------|
+| **medrag 코퍼스** | `["pubmed", "statpearls", "textbooks", "wikipedia"]` 4개 | **`["textbooks", "statpearls"]` 2개** | Colab 저장/시간 제약 |
+| **INPUT_DIM[medrag]** | 1540 (768+768+4) | **1538 (768+768+2)** | 코퍼스 수 변경에 따른 자동 반영 |
+| **MEDRAG_SOURCE_TO_ID** | `{pubmed:0, statpearls:1, textbooks:2, wikipedia:3}` | **`{textbooks:0, statpearls:1}`** | 코퍼스 수 변경 |
+| **LLM** | Ollama (`llama3.1_extended`, localhost:11434) | **vLLM (`unsloth/Meta-Llama-3.1-8B-Instruct`, localhost:8000/v1)** | Colab에서 Ollama 미지원 |
+| **LLM 모델명** | `meta-llama/Meta-Llama-3.1-8B-Instruct` | **`unsloth/Meta-Llama-3.1-8B-Instruct`** | unsloth 최적화 버전 |
+| **MMLU Wikipedia 임베딩** | Cohere Embed V3 (비공개) | **DPR-question-encoder** | Cohere API 없음 |
+| **의존성** | `sentence-transformers`, `ollama` 포함 | **`openai` 추가, `sentence-transformers`/`ollama` 제거** | vLLM 전환 |
+
+**레포에서 그대로 가져오는 것**: `CorpusRoutingNN` 아키텍처, feature 구성, 학습 하이퍼파라미터, data split 방식, LABEL_K/K_RETRIEVE, 정렬 방향, seed, best_metric, pos_weight 설정.
 **레포에 이미 있어서 그대로 사용하는 것**: `data/benchmark/MIRAGE.json`, `data/question_order_*.json`
 
 ---
@@ -27,20 +41,27 @@
 ## 1. 프로젝트 구조
 
 ```
-ragroute/
+ragroute_recreation/
 ├── ragroute.md
-├── claude.md
+├── CLAUDE.md
 ├── data/
 │   ├── raw/
-│   │   └── mirage/                    # MedRAG corpora
+│   │   ├── mirage/
+│   │   │   ├── textbooks/             # HuggingFace MedRAG/textbooks chunk/ 다운로드
+│   │   │   └── statpearls/            # NCBI FTP → MedRAG statpearls.py 처리
+│   │   └── wikipedia_1m/
+│   │       └── snippets.jsonl         # Wikipedia 1M 스니펫 (MMLU용)
 │   ├── embeddings/
 │   │   ├── mirage/
 │   │   │   ├── {corpus}_article_embeddings.npy   # (N, 768) float32
 │   │   │   ├── {corpus}_chunks.json              # len==N, index 1:1 대응
-│   │   │   └── {benchmark}_query_embeddings.npy  # (Q, 768) float32
+│   │   │   ├── {benchmark}_query_embeddings.npy  # (Q, 768) float32
+│   │   │   └── {benchmark}_query_ids.json        # q_id 순서 (MIRAGE.json 기준)
 │   │   └── mmlu/
 │   │       ├── cluster_{0-9}_embeddings.npy      # (N_c, 768) float32
-│   │       └── cluster_{0-9}_chunks.json
+│   │       ├── cluster_{0-9}_chunks.json
+│   │       ├── wikipedia_query_ids.json
+│   │       └── wikipedia_query_embeddings.npy
 │   ├── processed/
 │   │   ├── mirage/
 │   │   │   ├── train_test_split.json   # {q_id: "train"/"val"/"test"} (재현성)
@@ -50,16 +71,14 @@ ragroute/
 │   │   └── mmlu/
 │   │       └── (동일 구조)
 │   ├── stats/
-│   │   ├── pubmed_stats.json           # {"centroid": [...], "num_documents": N}
-│   │   ├── statpearls_stats.json
-│   │   ├── textbooks_stats.json
-│   │   ├── wikipedia_stats.json        # (medrag corpus)
+│   │   ├── textbooks_stats.json        # {"centroid": [...], "num_documents": N}
+│   │   ├── statpearls_stats.json       # (Colab: 이 2개만 생성)
 │   │   └── cluster_stats.json          # wikipedia(mmlu): [{"centroid": [...]}, ...]
 │   └── benchmark/                      # 원본 레포에서 그대로 복사
-│       ├── MIRAGE.json
-│       │   # keys: medqa(1273), medmcqa(4183), pubmedqa(500), bioasq(618), mmlu(1089)
-│       │   # 총 7663 questions
-│       └── question_order_*.json       # 평가 순서 고정 (재현성 필수)
+│       └── MIRAGE.json
+│           # keys: medqa(1273), medmcqa(4183), pubmedqa(500), bioasq(618), mmlu(1089)
+├── data/
+│   └── question_order_MIRAGE_*.json   # 평가 순서 고정 (재현성 필수)
 ├── src/
 │   ├── config.py
 │   ├── data_source.py
@@ -69,6 +88,7 @@ ragroute/
 │   ├── router_trainer.py
 │   ├── rag_router.py
 │   ├── federated_retriever.py
+│   ├── rag_pipeline.py
 │   └── utils.py
 ├── scripts/
 │   ├── 01_download_data.sh
@@ -76,13 +96,17 @@ ragroute/
 │   ├── 03_build_index.py            # FAISS index + stats.json
 │   ├── 04_generate_train_data.py    # label 생성 + question-level split
 │   ├── 05_train_router.py
-│   └── 06_evaluate.py
+│   ├── 06_evaluate.py
+│   └── 07_plot_results.py           # 결과 시각화 (figures/ 저장)
 ├── experiments/
 │   ├── mirage_top32.yaml
+│   ├── mirage_top10.yaml
 │   └── mmlu_top10.yaml
 ├── checkpoints/
 ├── results/
+├── figures/
 ├── tests/
+├── ragroute_colab.ipynb             # Colab 실행 노트북
 └── requirements.txt
 ```
 
@@ -109,7 +133,7 @@ ragroute/
 [FederatedRetriever.retrieve()]
     │  per-source top-K_RETRIEVE(50) → merge → global top-k_eval(10 or 32)
     ▼
-[LLM]                               # Ollama + LLaMA 3.1 (disable-rerank 모드)
+[LLM]                               # vLLM + unsloth/LLaMA 3.1 8B (⚠️ Colab: Ollama → vLLM)
 ```
 
 **K 값 구분** (혼동 주의):
@@ -221,15 +245,16 @@ empty rate가 높으면 threshold 조정 또는 학습 문제를 의심한다.
 ### 4.1 config.py
 
 ```python
+# ⚠️ Colab 변경: 원본 4개 → 2개 (textbooks + statpearls)
 DATA_SOURCES = {
-    "medrag":    ["pubmed", "statpearls", "textbooks", "wikipedia"],
+    "medrag":    ["textbooks", "statpearls"],   # 원본: ["pubmed","statpearls","textbooks","wikipedia"]
     "wikipedia": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
 }
-# 주의: 논문 "five corpora" = 4 corpus + MedCorp(합집합). 실제 사용은 4개.
 
-MEDRAG_SOURCE_TO_ID = {"pubmed": 0, "statpearls": 1, "textbooks": 2, "wikipedia": 3}
+MEDRAG_SOURCE_TO_ID = {"textbooks": 0, "statpearls": 1}  # 원본: {pubmed:0, statpearls:1, textbooks:2, wikipedia:3}
 
-INPUT_DIM = {"medrag": 1540, "wikipedia": 1546}
+# ⚠️ Colab 변경: 1540 → 1538 (코퍼스 4→2에 따라 one-hot 4→2)
+INPUT_DIM = {"medrag": 1538, "wikipedia": 1546}
 
 LABEL_K    = 15
 K_RETRIEVE = 50
@@ -257,11 +282,13 @@ MMLU_TARGET_SUBJECTS = {
     "professional_psychology", "high_school_mathematics",
 }
 
+# ⚠️ Colab 변경: Ollama → vLLM (OpenAI-compatible API)
 LLM_CONFIG = {
-    "ollama_model":        "llama3.1_extended",
-    "hf_name":             "meta-llama/Meta-Llama-3.1-8B-Instruct",
+    "vllm_model":          "unsloth/Meta-Llama-3.1-8B-Instruct",  # 원본: ollama_model="llama3.1_extended"
+    "hf_name":             "unsloth/Meta-Llama-3.1-8B-Instruct",  # 원본: meta-llama/Meta-Llama-3.1-8B-Instruct
     "docs_context_length": 128000,
-    "base_url":            "http://localhost:11434",
+    "base_url":            "http://localhost:8000/v1",             # 원본: http://localhost:11434
+    "api_key":             "dummy",
     "disable_rerank":      True,
 }
 
@@ -318,7 +345,8 @@ class RouterFeatureExtractor:
         # [0:768]    query_vec
         # [768:1536] centroid
         # [1536:]    np.eye(n_sources)[source_to_id[source_id]]
-        # returns (1540,) medrag / (1546,) wikipedia, float32
+        # returns (1538,) medrag / (1546,) wikipedia, float32
+        # ⚠️ Colab 변경: medrag 1540→1538 (코퍼스 4→2)
 ```
 
 ### 4.5 CorpusRoutingNN (`src/router_model.py`)
@@ -534,37 +562,42 @@ with open(f"data/question_order_MIRAGE_{benchmark}.json") as f:
 
 ## 6. 환경 설정
 
+### requirements.txt (현재)
+
 ```
+# ⚠️ 원본 대비 변경: sentence-transformers, ollama 제거 / openai 추가
 torch>=2.1.0        numpy>=1.24.0       scikit-learn>=1.3.0
-faiss-cpu>=1.7.4    transformers>=4.36.0  sentence-transformers>=4.0.0
+faiss-cpu>=1.7.4    transformers>=4.36.0
 accelerate>=0.25.0  datasets>=2.16.0    tqdm>=4.66.0
-pyyaml>=6.0         scipy>=1.11.0       ollama>=0.4.6
-python-liquid       pytest>=7.4.0
+pyyaml>=6.0         scipy>=1.11.0       openai>=1.0.0
+pytest>=7.4.0
 ```
 
+### Colab 실행 (권장)
+
+`ragroute_colab.ipynb` 셀 순서대로 실행. Cell 1의 `REPO_URL`만 수정.  
+(GitHub: https://github.com/ByoungjaeMin/ragroute_recreation)
+
+**LLM (Colab, vLLM)**:
+```python
+# Cell 9에서 자동 처리
+!pip install -q vllm openai
+# vLLM 서버: unsloth/Meta-Llama-3.1-8B-Instruct, port=8000
+```
+
+### 로컬 실행
+
 ```bash
-conda create -n ragroute python=3.9 && conda activate ragroute
 pip install -r requirements.txt
-```
-
-**LLM**:
-```bash
-ollama serve
-ollama pull llama3.1:8b
-# 128k context 버전 (논문 원본)
-cat > Modelfile << 'EOF'
-FROM llama3.1:8b
-PARAMETER num_ctx 131072
-EOF
-ollama create llama3.1_extended -f Modelfile
-export HF_TOKEN=hf_...   # tokenizer 로드용
+# Colab Secrets 대신 직접 환경변수 설정
+export HF_TOKEN=hf_...
 ```
 
 **데이터**:
 ```bash
+# benchmark 파일: 원본 sacs-epfl/ragroute 레포에서 복사
 cp -r /path/to/ragroute/data/benchmark data/
 cp /path/to/ragroute/data/question_order_*.json data/
-git clone https://github.com/Teddy-XiongGZ/MedRAG.git
 ```
 
 **실행 순서**:
@@ -574,8 +607,12 @@ python scripts/02_build_embeddings.py --dataset mmlu
 python scripts/03_build_index.py --dataset medrag
 python scripts/03_build_index.py --dataset mmlu
 python scripts/04_generate_train_data.py --config experiments/mirage_top32.yaml
+python scripts/04_generate_train_data.py --config experiments/mmlu_top10.yaml
 python scripts/05_train_router.py --config experiments/mirage_top32.yaml
-python scripts/06_evaluate.py --config experiments/mirage_top32.yaml
+python scripts/05_train_router.py --config experiments/mmlu_top10.yaml
+python scripts/06_evaluate.py --config experiments/mirage_top32.yaml --mode no_rag
+python scripts/06_evaluate.py --config experiments/mirage_top32.yaml --mode rag_all
+python scripts/06_evaluate.py --config experiments/mirage_top32.yaml --mode ragroute
 ```
 
 ---
