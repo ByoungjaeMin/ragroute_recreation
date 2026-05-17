@@ -3,8 +3,8 @@ benchmark: MMLU
 k_eval: 10
 
 embedding:
-  query_encoder: facebook/dpr-question_encoder-single-nq-base
-  pooling: pooler_output
+  query_encoder: BAAI/bge-base-en-v1.5
+  pooling: cls
   dim: 768
   n_clusters: 10
   kmeans_seed: 42
