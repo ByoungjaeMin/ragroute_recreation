@@ -49,6 +49,7 @@ from src.utils import (
 
 MEDRAG_CORPORA = DATA_SOURCES["medrag"]
 MIRAGE_BENCHMARKS = ["pubmedqa", "medqa", "bioasq", "medmcqa", "mmlu-med"]
+MIRAGE_KEY_MAP = {"mmlu-med": "mmlu"}
 
 
 # ---------------------------------------------------------------------------
@@ -102,7 +103,8 @@ def load_mirage_questions(split_dict: Dict[str, str]) -> Dict[str, List[Dict]]:
             ordered_ids = json.load(f)
 
         # MIRAGE.json format: {q_id: {"question": ..., "options": ..., "answer": ...}}
-        mirage_raw = mirage.get(benchmark, {})
+        mirage_key = MIRAGE_KEY_MAP.get(benchmark, benchmark)
+        mirage_raw = mirage.get(mirage_key, {})
         qmap = {qid: {"id": qid, **item} for qid, item in mirage_raw.items()}
         missing_ids = sorted(set(ordered_ids) - set(qmap))
         extra_ids = sorted(set(qmap) - set(ordered_ids))

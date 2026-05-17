@@ -45,6 +45,8 @@ from src.embedding_model import EmbeddingModel
 # ---------------------------------------------------------------------------
 
 MIRAGE_BENCHMARKS = ["pubmedqa", "medqa", "bioasq", "medmcqa", "mmlu-med"]
+# MIRAGE.json uses "mmlu" but files/benchmark names use "mmlu-med"
+MIRAGE_KEY_MAP = {"mmlu-med": "mmlu"}
 
 MEDRAG_CORPORA = DATA_SOURCES["medrag"]
 
@@ -86,7 +88,8 @@ def build_medrag_embeddings(out_dir: str) -> None:
             continue
 
         # MIRAGE.json format: {q_id: {"question": ..., "options": ..., "answer": ...}}
-        questions_dict = mirage.get(benchmark, {})
+        mirage_key = MIRAGE_KEY_MAP.get(benchmark, benchmark)
+        questions_dict = mirage.get(mirage_key, {})
         if not questions_dict:
             print(f"[query]   {benchmark}: no questions found in MIRAGE.json, skipping.")
             continue
