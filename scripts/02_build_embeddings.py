@@ -209,10 +209,9 @@ def build_mmlu_embeddings(out_dir: str) -> None:
         print(f"[article] Encoding {len(all_texts)} Wikipedia chunks ...")
         # DEVIATION FROM ORIGINAL: original uses Cohere Embed V3 (proprietary, unavailable).
         # Original: cohere.embed(texts, model="embed-multilingual-v3.0")
-        # This impl: DPR question encoder for both queries and passages (asymmetric use).
-        #            Ideally DPRContextEncoder should be used for passages, but since
-        #            the embedding space must match the query encoder at search time,
-        #            and we cannot replicate Cohere, both sides use the same DPR encoder.
+        # This impl: BAAI/bge-large-en-v1.5 — single encoder, CLS pooling, 768-dim.
+        #            BGE is a high-quality open-source alternative; same encoder used
+        #            for both passages and queries to keep the embedding space consistent.
         embeddings = model.encode_batch(all_texts, batch_size=256)
         np.save(wiki_emb_path, embeddings)
         with open(wiki_chunks_path, "w") as f:

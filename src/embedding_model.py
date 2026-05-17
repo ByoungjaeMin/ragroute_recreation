@@ -4,25 +4,24 @@ from typing import List
 
 import numpy as np
 import torch
-from transformers import AutoModel, AutoTokenizer, DPRQuestionEncoder, DPRQuestionEncoderTokenizer
+from transformers import AutoModel, AutoTokenizer
 
 from src.config import (
-    DPR_QUESTION_ENCODER,
+    BGE_ENCODER,
     MEDCPT_ARTICLE_ENCODER,
     MEDCPT_QUERY_ENCODER,
 )
 
 
 class EmbeddingModel:
-    """Wraps MedCPT (medrag) and DPR (wikipedia) encoders with CLS / pooler pooling.
+    """Wraps MedCPT (medrag) and BGE (wikipedia) encoders with CLS pooling.
 
     medrag query:   MedCPT-Query-Encoder   + CLS pooling
     medrag article: MedCPT-Article-Encoder + CLS pooling
-    wikipedia:      DPR-question-encoder   + pooler_output
+    wikipedia:      BAAI/bge-large-en-v1.5 + CLS pooling (single encoder)
 
-    DEVIATION FROM ORIGINAL: original uses CustomizeSentenceTransformer.
-    This impl uses HuggingFace AutoModel + explicit CLS token extraction.
-    Behaviour (CLS pooling, float32 output) is identical.
+    DEVIATION FROM ORIGINAL: original uses CustomizeSentenceTransformer + Cohere Embed V3.
+    This impl uses HuggingFace AutoModel + CLS pooling.
     """
 
     def __init__(self, dataset: str, device: str = "cuda" if torch.cuda.is_available() else "cpu"):
@@ -40,8 +39,8 @@ class EmbeddingModel:
             self._article_model = AutoModel.from_pretrained(MEDCPT_ARTICLE_ENCODER).to(device).eval()
 
         else:  # wikipedia
-            self._query_tokenizer = DPRQuestionEncoderTokenizer.from_pretrained(DPR_QUESTION_ENCODER)
-            self._query_model = DPRQuestionEncoder.from_pretrained(DPR_QUESTION_ENCODER).to(device).eval()
+            self._query_tokenizer = AutoTokenizer.from_pretrained(BGE_ENCODER)
+            self._query_model = AutoModel.from_pretrained(BGE_ENCODER).to(device).eval()
 
     # ------------------------------------------------------------------
     # Public API
@@ -102,7 +101,7 @@ class EmbeddingModel:
             # CLS pooling: first token of last hidden state
             embeddings = outputs.last_hidden_state[:, 0, :]
 
-        else:  # wikipedia, mode is always "query"
+        else:  # wikipedia — BGE, single encoder for both queries and passages
             encoded = self._query_tokenizer(
                 texts,
                 padding=True,
@@ -114,7 +113,7 @@ class EmbeddingModel:
             with torch.no_grad():
                 outputs = self._query_model(**encoded)
 
-            # DPR uses pooler_output (not last_hidden_state CLS)
-            embeddings = outputs.pooler_output
+            # BGE uses CLS pooling (first token of last hidden state)
+            embeddings = outputs.last_hidden_state[:, 0, :]
 
         return embeddings.cpu().float().numpy()
