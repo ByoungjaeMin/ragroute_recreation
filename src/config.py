@@ -122,7 +122,8 @@ RAW_DIR        = os.path.join(DATA_DIR, "raw")
 
 MEDCPT_QUERY_ENCODER   = "ncbi/MedCPT-Query-Encoder"
 MEDCPT_ARTICLE_ENCODER = "ncbi/MedCPT-Article-Encoder"
-# DEVIATION FROM ORIGINAL: Cohere Embed V3 (proprietary) → BGE-large-en-v1.5 (open source)
+# DEVIATION FROM ORIGINAL: Cohere Embed V3 (proprietary) → BGE-base-en-v1.5 (open source)
 # Original: cohere.embed(model="embed-multilingual-v3.0")
-# This impl: BAAI/bge-large-en-v1.5 — single encoder, CLS pooling, 768-dim
-BGE_ENCODER = "BAAI/bge-large-en-v1.5"
+# This impl: BAAI/bge-base-en-v1.5 — single encoder, CLS pooling, 768-dim (matches INPUT_DIM)
+# Note: bge-large outputs 1024-dim which breaks INPUT_DIM["wikipedia"]=1546
+BGE_ENCODER = "BAAI/bge-base-en-v1.5"
