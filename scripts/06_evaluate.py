@@ -101,7 +101,9 @@ def load_mirage_questions(split_dict: Dict[str, str]) -> Dict[str, List[Dict]]:
         with open(order_path, "r") as f:
             ordered_ids = json.load(f)
 
-        qmap = {item["id"]: item for item in mirage.get(benchmark, [])}
+        # MIRAGE.json format: {q_id: {"question": ..., "options": ..., "answer": ...}}
+        mirage_raw = mirage.get(benchmark, {})
+        qmap = {qid: {"id": qid, **item} for qid, item in mirage_raw.items()}
         missing_ids = sorted(set(ordered_ids) - set(qmap))
         extra_ids = sorted(set(qmap) - set(ordered_ids))
         if missing_ids or extra_ids:

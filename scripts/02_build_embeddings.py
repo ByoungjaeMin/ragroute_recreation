@@ -85,14 +85,15 @@ def build_medrag_embeddings(out_dir: str) -> None:
             print(f"[query]   {benchmark}: already exists, skipping.")
             continue
 
-        questions = mirage.get(benchmark, [])
-        if not questions:
+        # MIRAGE.json format: {q_id: {"question": ..., "options": ..., "answer": ...}}
+        questions_dict = mirage.get(benchmark, {})
+        if not questions_dict:
             print(f"[query]   {benchmark}: no questions found in MIRAGE.json, skipping.")
             continue
 
         # Preserve exact MIRAGE.json order — alignment with downstream stages depends on this
-        q_ids = [item["id"] for item in questions]
-        q_texts = [item["question"] for item in questions]
+        q_ids = list(questions_dict.keys())
+        q_texts = [questions_dict[qid]["question"] for qid in q_ids]
 
         print(f"[query]   {benchmark}: encoding {len(q_texts)} queries ...")
         embeddings = model.encode_batch(q_texts, batch_size=128)
@@ -187,10 +188,10 @@ def build_mmlu_embeddings(out_dir: str) -> None:
 
     if not os.path.exists(wiki_emb_path):
         snippets_path = os.path.join(DATA_DIR, "raw", "wikipedia_1m", "snippets.jsonl")
-        if not os.path.exists(snippets_path):
+        if not os.path.exists(snippets_path) or os.path.getsize(snippets_path) == 0:
             raise FileNotFoundError(
-                f"Wikipedia snippets not found at {snippets_path}. "
-                "Run scripts/01_download_data.sh first."
+                f"Wikipedia snippets not found or empty at {snippets_path}. "
+                "Re-run Cell 2 (data prep) to generate snippets.jsonl."
             )
 
         print("[article] Loading Wikipedia snippets ...")
