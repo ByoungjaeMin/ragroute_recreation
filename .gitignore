@@ -14,10 +14,8 @@ data/processed/
 # FAISS stats files (centroid/cluster_stats JSONs)
 data/stats/
 
-# Benchmark files from the original RAGRoute repo — license-sensitive,
-# must be copied manually (MIRAGE.json, question_order_*.json)
-data/benchmark/
-data/question_order_*.json
+# Benchmark files — committed to repo for reproducibility
+# data/benchmark/MIRAGE.json and data/question_order_*.json are tracked
 
 # External repos cloned by setup scripts
 external/
