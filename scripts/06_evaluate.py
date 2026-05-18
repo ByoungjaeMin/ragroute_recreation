@@ -23,7 +23,7 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
 
-LLM_CONCURRENCY = 16  # concurrent requests to vLLM
+LLM_CONCURRENCY = 8  # concurrent requests to vLLM
 
 import yaml
 
