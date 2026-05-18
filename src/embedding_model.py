@@ -41,7 +41,7 @@ class EmbeddingModel:
         else:  # wikipedia
             self._query_tokenizer = AutoTokenizer.from_pretrained(BGE_ENCODER)
             self._query_model = AutoModel.from_pretrained(
-                BGE_ENCODER, torch_dtype=torch.float16
+                BGE_ENCODER, dtype=torch.float16
             ).to(device).eval()
 
     # ------------------------------------------------------------------
