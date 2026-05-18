@@ -144,7 +144,7 @@ def call_llm(system_prompt: str, user_prompt: str, llm_cfg: Dict) -> str:
             {"role": "system", "content": system_prompt},
             {"role": "user",   "content": user_prompt},
         ],
-        max_tokens=512,
+        max_tokens=64,
     )
     return response.choices[0].message.content
 
