@@ -92,7 +92,8 @@ def load_mirage_questions(split_dict: Dict[str, str]) -> Dict[str, List[Dict]]:
 
     result: Dict[str, List[Dict]] = {}
     for benchmark in MIRAGE_BENCHMARKS:
-        order_path = os.path.join(DATA_DIR, f"question_order_MIRAGE_{benchmark}.json")
+        file_key = MIRAGE_KEY_MAP.get(benchmark, benchmark)
+        order_path = os.path.join(DATA_DIR, f"question_order_MIRAGE_{file_key}.json")
         if not os.path.exists(order_path):
             raise FileNotFoundError(
                 f"Missing required evaluation order file: {order_path}. "
