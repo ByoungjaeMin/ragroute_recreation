@@ -20,7 +20,10 @@ import argparse
 import json
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List
+
+LLM_CONCURRENCY = 16  # concurrent requests to vLLM
 
 import yaml
 
@@ -149,6 +152,19 @@ def call_llm(system_prompt: str, user_prompt: str, llm_cfg: Dict) -> str:
     return response.choices[0].message.content
 
 
+def call_llm_batch(prompts: List[tuple], llm_cfg: Dict) -> List[str]:
+    """Send multiple (system, user) prompt pairs concurrently to vLLM."""
+    with ThreadPoolExecutor(max_workers=LLM_CONCURRENCY) as executor:
+        futures = {
+            executor.submit(call_llm, sys_p, usr_p, llm_cfg): i
+            for i, (sys_p, usr_p) in enumerate(prompts)
+        }
+        results = [""] * len(prompts)
+        for future in as_completed(futures):
+            results[futures[future]] = future.result()
+    return results
+
+
 def build_user_prompt(question: str, options: Dict[str, str], chunks: List[Any]) -> str:
     if chunks:
         context_parts = [f"[{i+1}] {_chunk_to_text(c)}" for i, c in enumerate(chunks)]
@@ -197,36 +213,41 @@ def evaluate_mirage(
         records = []
         correct = 0
 
+        # Pre-compute routing/retrieval for all questions
+        meta = []
+        prompts = []
         for item in questions:
             q_id = item["id"]
             question = item["question"]
-            options = item["options"]   # {"A": "...", "B": "...", ...}
-            answer = item["answer"]     # "A" / "B" / "C" / "D"
-
+            options = item["options"]
+            answer = item["answer"]
             query_vec = embedding_model.encode_query(question)
 
             if mode == "no_rag":
-                chunks = []
-                selected_ids = []
+                chunks = []; selected_ids = []
             elif mode == "rag_all":
                 chunks = retriever.retrieve(query_vec, sources)
                 selected_ids = [s.source_id for s in sources]
-            else:  # ragroute
+            else:
                 selected = router.route(query_vec)
                 chunks = retriever.retrieve(query_vec, selected)
                 selected_ids = [s.source_id for s in selected]
 
-            user_prompt = build_user_prompt(question, options, chunks)
-            llm_output = call_llm(MEDRAG_SYSTEM_PROMPT, user_prompt, llm_cfg)
-            is_correct = check_mirage_answer(llm_output, answer)
+            prompts.append((MEDRAG_SYSTEM_PROMPT, build_user_prompt(question, options, chunks)))
+            meta.append({"q_id": q_id, "answer": answer, "selected_ids": selected_ids, "n_chunks": len(chunks)})
+
+        # Batch LLM calls
+        llm_outputs = call_llm_batch(prompts, llm_cfg)
+
+        for m, llm_output in zip(meta, llm_outputs):
+            is_correct = check_mirage_answer(llm_output, m["answer"])
             if is_correct:
                 correct += 1
-
             records.append({
-                "q_id": q_id,
+                "q_id": m["q_id"],
                 "correct": is_correct,
-                "selected_sources": selected_ids,
-                "n_chunks": len(chunks),
+                "selected_sources": m["selected_ids"],
+                "n_chunks": m["n_chunks"],
                 "llm_output": llm_output,
             })
 
@@ -260,6 +281,9 @@ def evaluate_mmlu(
     records = []
     correct = 0
 
+    # Pre-compute routing/retrieval for all questions
+    meta = []
+    prompts = []
     for item in questions:
         q_id = item["id"]
         question = item["question"]
@@ -271,8 +295,7 @@ def evaluate_mmlu(
         query_vec = embedding_model.encode_query(formatted_q)
 
         if mode == "no_rag":
-            chunks = []
-            selected_ids = []
+            chunks = []; selected_ids = []
         elif mode == "rag_all":
             chunks = retriever.retrieve(query_vec, sources)
             selected_ids = [s.source_id for s in sources]
@@ -281,17 +304,21 @@ def evaluate_mmlu(
             chunks = retriever.retrieve(query_vec, selected)
             selected_ids = [s.source_id for s in selected]
 
-        user_prompt = build_user_prompt(question, options, chunks)
-        llm_output = call_llm(MEDRAG_SYSTEM_PROMPT, user_prompt, llm_cfg)
-        is_correct = check_mmlu_answer(llm_output, answer_idx)
+        prompts.append((MEDRAG_SYSTEM_PROMPT, build_user_prompt(question, options, chunks)))
+        meta.append({"q_id": q_id, "answer_idx": answer_idx, "selected_ids": selected_ids, "n_chunks": len(chunks)})
+
+    # Batch LLM calls
+    llm_outputs = call_llm_batch(prompts, llm_cfg)
+
+    for m, llm_output in zip(meta, llm_outputs):
+        is_correct = check_mmlu_answer(llm_output, m["answer_idx"])
         if is_correct:
             correct += 1
-
         records.append({
-            "q_id": q_id,
+            "q_id": m["q_id"],
             "correct": is_correct,
-            "selected_sources": selected_ids,
-            "n_chunks": len(chunks),
+            "selected_sources": m["selected_ids"],
+            "n_chunks": m["n_chunks"],
         })
 
     accuracy = correct / len(questions) * 100
