@@ -139,17 +139,40 @@ def load_mmlu_questions(split_dict: Dict[str, str], emb_dir: str) -> List[Dict]:
 # ---------------------------------------------------------------------------
 
 def call_llm(system_prompt: str, user_prompt: str, llm_cfg: Dict) -> str:
-    from openai import OpenAI
+    from openai import OpenAI, BadRequestError
     client = OpenAI(base_url=llm_cfg["base_url"], api_key=llm_cfg["api_key"])
-    response = client.chat.completions.create(
-        model=llm_cfg["vllm_model"],
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user",   "content": user_prompt},
-        ],
-        max_tokens=256,
-    )
-    return response.choices[0].message.content
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user",   "content": user_prompt},
+    ]
+    try:
+        response = client.chat.completions.create(
+            model=llm_cfg["vllm_model"],
+            messages=messages,
+            max_tokens=256,
+        )
+        return response.choices[0].message.content
+    except BadRequestError as e:
+        if "maximum context length" not in str(e):
+            raise
+        # Prompt too long: strip documents section and retry with question only
+        question_marker = "Here is the question:"
+        idx = user_prompt.find(question_marker)
+        if idx == -1:
+            return ""
+        truncated = user_prompt[idx:]
+        try:
+            response = client.chat.completions.create(
+                model=llm_cfg["vllm_model"],
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user",   "content": truncated},
+                ],
+                max_tokens=256,
+            )
+            return response.choices[0].message.content
+        except BadRequestError:
+            return ""
 
 
 def call_llm_batch(prompts: List[tuple], llm_cfg: Dict) -> List[str]:

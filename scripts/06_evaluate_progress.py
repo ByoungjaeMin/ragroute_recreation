@@ -97,10 +97,22 @@ def _extract_lenient(llm_output: str):
             if m:
                 return m.group(1).upper()
 
-    # Last resort: regex directly on raw output
+    # Regex directly on raw output for JSON key
     m = re.search(r'"answer_choice"\s*:\s*"([A-Da-d])', llm_output)
     if m:
         return m.group(1).upper()
+
+    # Free-text patterns: "The answer is B", "Answer: B", "(B)", "**B**"
+    for pattern in [
+        r'[Tt]he\s+(?:correct\s+)?answer\s+is\s+["\']?([A-Da-d])["\']?',
+        r'[Aa]nswer\s*[:\-]\s*["\']?([A-Da-d])["\']?',
+        r'\*{1,2}([A-Da-d])\*{1,2}',
+        r'\(([A-Da-d])\)',
+        r'^([A-Da-d])[).\s]',
+    ]:
+        m = re.search(pattern, llm_output, re.MULTILINE)
+        if m:
+            return m.group(1).upper()
 
     return None
 
