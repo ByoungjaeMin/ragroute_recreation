@@ -312,14 +312,15 @@ def build_arxiv_embeddings(out_dir: str) -> None:
     if not os.path.exists(arxiv_emb_path):
         print("[article] Loading arXiv abstracts ...")
         from datasets import load_dataset as hf_load
-        # scientific_papers arxiv split: ~2M papers; sample 500K for manageability
-        ds = hf_load("scientific_papers", "arxiv", split="train", streaming=True)
+        # Cornell-University/arxiv: official arXiv metadata ~2.4M papers, parquet-based
+        # Fields: abstract, title, categories, id, ...
+        ds = hf_load("Cornell-University/arxiv", split="train", streaming=True)
 
         all_chunks = []
         all_texts = []
         max_docs = 500_000
         for item in tqdm(ds, desc="Loading arXiv abstracts", total=max_docs):
-            abstract = item.get("abstract", "").strip()
+            abstract = (item.get("abstract") or "").strip()
             if not abstract:
                 continue
             all_chunks.append(abstract)
