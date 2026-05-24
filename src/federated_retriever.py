@@ -80,7 +80,7 @@ class FederatedRetriever:
     ) -> List[Tuple[float, DataSource, int]]:
         if dataset == "medrag":
             return sorted(results, key=lambda x: x[0], reverse=False)
-        elif dataset == "wikipedia":
+        elif dataset in ("wikipedia", "arxiv"):
             return sorted(results, key=lambda x: x[0], reverse=True)
         else:
             raise ValueError(f"Unknown dataset '{dataset}'.")
