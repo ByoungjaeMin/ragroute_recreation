@@ -10,6 +10,7 @@ import os
 DATA_SOURCES = {
     "medrag":    ["textbooks", "statpearls"],
     "wikipedia": ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
+    "arxiv":     ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"],
 }
 
 # Maps corpus name → one-hot index (medrag only)
@@ -21,6 +22,7 @@ MEDRAG_SOURCE_TO_ID = {
 INPUT_DIM = {
     "medrag":    1538,   # 768 + 768 + 2
     "wikipedia": 1546,   # 768 + 768 + 10
+    "arxiv":     1546,   # 768 + 768 + 10
 }
 
 # ---------------------------------------------------------------------------
@@ -68,11 +70,43 @@ TRAIN_CONFIG = {
         "use_pos_weight":   True,
         "pos_weight_scale": 5.0,       # pos_weight = 5 * (neg / pos)
     },
+    "arxiv": {
+        "seed":             42,
+        "batch_size":       128,
+        "epochs":           150,
+        "lr_base":          1e-3,
+        "lr_max":           5e-3,
+        "weight_decay":     1e-5,
+        "grad_clip":        1.0,
+        "cyclic_step_up":   10,
+        "cyclic_mode":      "triangular2",
+        "cyclic_cutoff":    115,
+        "step_lr_step":     50,
+        "step_lr_gamma":    0.05,
+        "best_metric":      "val_f1",
+        "use_pos_weight":   True,
+        "pos_weight_scale": 5.0,
+    },
 }
 
 # ---------------------------------------------------------------------------
 # MMLU target subjects (8, not 10 as stated in the paper)
 # ---------------------------------------------------------------------------
+
+ARXIV_STEM_SUBJECTS = {
+    "college_physics",
+    "high_school_physics",
+    "conceptual_physics",
+    "college_computer_science",
+    "high_school_computer_science",
+    "electrical_engineering",
+    "college_mathematics",
+    "abstract_algebra",
+    "college_chemistry",
+    "high_school_chemistry",
+    "machine_learning",
+    "astronomy",
+}
 
 MMLU_TARGET_SUBJECTS = {
     "high_school_microeconomics",

@@ -25,8 +25,8 @@ class EmbeddingModel:
     """
 
     def __init__(self, dataset: str, device: str = "cuda" if torch.cuda.is_available() else "cpu"):
-        if dataset not in ("medrag", "wikipedia"):
-            raise ValueError(f"Unknown dataset '{dataset}'. Expected 'medrag' or 'wikipedia'.")
+        if dataset not in ("medrag", "wikipedia", "arxiv"):
+            raise ValueError(f"Unknown dataset '{dataset}'. Expected 'medrag', 'wikipedia', or 'arxiv'.")
 
         self.dataset = dataset
         self.device = device
@@ -38,7 +38,7 @@ class EmbeddingModel:
             self._article_tokenizer = AutoTokenizer.from_pretrained(MEDCPT_ARTICLE_ENCODER)
             self._article_model = AutoModel.from_pretrained(MEDCPT_ARTICLE_ENCODER).to(device).eval()
 
-        else:  # wikipedia
+        else:  # wikipedia / arxiv — same BGE encoder
             self._query_tokenizer = AutoTokenizer.from_pretrained(BGE_ENCODER)
             self._query_model = AutoModel.from_pretrained(
                 BGE_ENCODER, dtype=torch.float16
@@ -103,7 +103,7 @@ class EmbeddingModel:
             # CLS pooling: first token of last hidden state
             embeddings = outputs.last_hidden_state[:, 0, :]
 
-        else:  # wikipedia — BGE, single encoder for both queries and passages
+        else:  # wikipedia / arxiv — BGE, single encoder for both queries and passages
             encoded = self._query_tokenizer(
                 texts,
                 padding=True,

@@ -30,6 +30,7 @@ from tqdm import tqdm
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.config import (
+    ARXIV_STEM_SUBJECTS,
     BENCHMARK_DIR,
     DATA_DIR,
     DATA_SOURCES,
@@ -252,22 +253,139 @@ def build_mmlu_embeddings(out_dir: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# arxiv (STEM extension experiment)
+# ---------------------------------------------------------------------------
+
+def build_arxiv_embeddings(out_dir: str) -> None:
+    """Build arXiv abstract embeddings for MMLU STEM evaluation.
+
+    Uses the same BGE encoder + k-means pipeline as the wikipedia dataset.
+    Documents: arXiv abstracts from `scientific_papers` (HuggingFace).
+    Queries:   MMLU STEM subjects defined in ARXIV_STEM_SUBJECTS.
+    """
+    from sklearn.cluster import MiniBatchKMeans
+
+    os.makedirs(out_dir, exist_ok=True)
+    model = EmbeddingModel(dataset="arxiv")
+
+    # --- Query embeddings for MMLU STEM subjects ---
+    q_emb_path = os.path.join(out_dir, "arxiv_query_embeddings.npy")
+    q_ids_path = os.path.join(out_dir, "arxiv_query_ids.json")
+    q_meta_path = os.path.join(out_dir, "arxiv_query_meta.json")
+
+    if not (os.path.exists(q_emb_path) and os.path.exists(q_ids_path)):
+        print("[query] Loading MMLU STEM dataset ...")
+        from datasets import load_dataset as hf_load
+        ds = hf_load("cais/mmlu", "all", split="test")
+
+        q_ids, q_texts, q_meta = [], [], []
+        for i, item in enumerate(ds):
+            if item["subject"] not in ARXIV_STEM_SUBJECTS:
+                continue
+            q_id = f"question_{i}"
+            formatted = item["question"] + "\n" + " | ".join(item["choices"])
+            q_ids.append(q_id)
+            q_texts.append(formatted)
+            q_meta.append({
+                "id": q_id,
+                "question": item["question"],
+                "choices": item["choices"],
+                "answer": int(item["answer"]),
+                "subject": item["subject"],
+            })
+
+        print(f"[query] Encoding {len(q_texts)} MMLU STEM queries ...")
+        embeddings = model.encode_batch(q_texts, batch_size=128)
+        np.save(q_emb_path, embeddings)
+        with open(q_ids_path, "w") as f:
+            json.dump(q_ids, f)
+        with open(q_meta_path, "w") as f:
+            json.dump(q_meta, f)
+        print(f"[query] Saved {embeddings.shape}")
+    else:
+        print("[query] arXiv query embeddings already exist, skipping.")
+
+    # --- arXiv abstract embeddings ---
+    arxiv_emb_path = os.path.join(out_dir, "arxiv_all_embeddings.npy")
+    arxiv_chunks_path = os.path.join(out_dir, "arxiv_all_chunks.json")
+
+    if not os.path.exists(arxiv_emb_path):
+        print("[article] Loading arXiv abstracts ...")
+        from datasets import load_dataset as hf_load
+        # scientific_papers arxiv split: ~2M papers; sample 500K for manageability
+        ds = hf_load("scientific_papers", "arxiv", split="train", streaming=True)
+
+        all_chunks = []
+        all_texts = []
+        max_docs = 500_000
+        for item in tqdm(ds, desc="Loading arXiv abstracts", total=max_docs):
+            abstract = item.get("abstract", "").strip()
+            if not abstract:
+                continue
+            all_chunks.append(abstract)
+            all_texts.append(abstract)
+            if len(all_texts) >= max_docs:
+                break
+
+        print(f"[article] Encoding {len(all_texts)} arXiv abstracts ...")
+        embeddings = model.encode_batch(all_texts, batch_size=256)
+        np.save(arxiv_emb_path, embeddings)
+        with open(arxiv_chunks_path, "w") as f:
+            json.dump(all_chunks, f)
+        print(f"[article] Saved {embeddings.shape}")
+    else:
+        print("[article] arXiv embeddings already exist, skipping.")
+        embeddings = np.load(arxiv_emb_path)
+        with open(arxiv_chunks_path, "r") as f:
+            all_chunks = json.load(f)
+
+    # --- k-means clustering into 10 clusters ---
+    cluster_done = all(
+        os.path.exists(os.path.join(out_dir, f"cluster_{i}_embeddings.npy"))
+        for i in range(10)
+    )
+    if cluster_done:
+        print("[kmeans] Cluster files already exist, skipping.")
+        return
+
+    print("[kmeans] Fitting MiniBatchKMeans (n_clusters=10) ...")
+    km = MiniBatchKMeans(n_clusters=10, random_state=42, batch_size=10000, n_init=3)
+    labels = km.fit_predict(embeddings.astype(np.float32))
+
+    for c in range(10):
+        mask = labels == c
+        c_emb = embeddings[mask]
+        c_chunks = [all_chunks[i] for i in np.where(mask)[0]]
+        np.save(os.path.join(out_dir, f"cluster_{c}_embeddings.npy"), c_emb.astype(np.float32))
+        with open(os.path.join(out_dir, f"cluster_{c}_chunks.json"), "w") as f:
+            json.dump(c_chunks, f)
+        print(f"  cluster {c}: {c_emb.shape[0]} abstracts")
+
+    sizes = [(labels == c).sum() for c in range(10)]
+    print(f"[kmeans] Cluster sizes: min={min(sizes)}, max={max(sizes)}")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True, choices=["medrag", "mmlu"])
+    parser.add_argument("--dataset", required=True, choices=["medrag", "mmlu", "arxiv"])
     args = parser.parse_args()
 
     if args.dataset == "medrag":
         out_dir = os.path.join(EMBEDDINGS_DIR, "mirage")
         print(f"=== Building medrag embeddings → {out_dir} ===")
         build_medrag_embeddings(out_dir)
-    else:
+    elif args.dataset == "mmlu":
         out_dir = os.path.join(EMBEDDINGS_DIR, "mmlu")
         print(f"=== Building mmlu embeddings → {out_dir} ===")
         build_mmlu_embeddings(out_dir)
+    else:
+        out_dir = os.path.join(EMBEDDINGS_DIR, "arxiv")
+        print(f"=== Building arxiv embeddings → {out_dir} ===")
+        build_arxiv_embeddings(out_dir)
 
     print("\nDone. Next: python scripts/03_build_index.py --dataset", args.dataset)
 

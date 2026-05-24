@@ -44,7 +44,7 @@ class RouterFeatureExtractor:
 
         if dataset == "medrag":
             source_idx = MEDRAG_SOURCE_TO_ID[source_id]
-        elif dataset == "wikipedia":
+        elif dataset in ("wikipedia", "arxiv"):
             source_idx = int(source_id)
         else:
             raise ValueError(f"Unknown dataset '{dataset}'.")

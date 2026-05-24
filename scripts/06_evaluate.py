@@ -83,6 +83,18 @@ def load_sources_mmlu(emb_dir: str, stats_dir: str) -> List[DataSource]:
     ]
 
 
+def load_sources_arxiv(emb_dir: str, stats_dir: str) -> List[DataSource]:
+    return [
+        DataSource.from_files(
+            source_id=str(c), dataset="arxiv",
+            index_path=os.path.join(emb_dir, f"cluster_{c}_index.faiss"),
+            chunks_path=os.path.join(emb_dir, f"cluster_{c}_chunks.json"),
+            stats_path=os.path.join(stats_dir, "arxiv_cluster_stats.json"),
+        )
+        for c in range(10)
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Question loaders
 # ---------------------------------------------------------------------------
@@ -129,6 +141,13 @@ def load_mirage_questions(split_dict: Dict[str, str]) -> Dict[str, List[Dict]]:
 
 def load_mmlu_questions(split_dict: Dict[str, str], emb_dir: str) -> List[Dict]:
     meta_path = os.path.join(emb_dir, "mmlu_query_meta.json")
+    with open(meta_path, "r") as f:
+        all_meta = json.load(f)
+    return [item for item in all_meta if split_dict.get(item["id"]) == "test"]
+
+
+def load_arxiv_questions(split_dict: Dict[str, str], emb_dir: str) -> List[Dict]:
+    meta_path = os.path.join(emb_dir, "arxiv_query_meta.json")
     with open(meta_path, "r") as f:
         all_meta = json.load(f)
     return [item for item in all_meta if split_dict.get(item["id"]) == "test"]
@@ -281,6 +300,74 @@ def evaluate_mirage(
             json.dump({"accuracy": accuracy, "n_correct": correct, "n_total": len(questions), "records": records}, f, indent=2)
 
 
+def evaluate_arxiv(
+    cfg: Dict,
+    mode: str,
+    sources: List[DataSource],
+    embedding_model: EmbeddingModel,
+    router: RAGRouter | None,
+    retriever: FederatedRetriever,
+    split_dict: Dict[str, str],
+    results_dir: str,
+) -> None:
+    emb_dir = os.path.join(EMBEDDINGS_DIR, "arxiv")
+    questions = load_arxiv_questions(split_dict, emb_dir)
+    llm_cfg = LLM_CONFIG
+
+    results_path = os.path.join(results_dir, f"{mode}_arxiv.json")
+    if os.path.exists(results_path):
+        print(f"  arXiv results already exist at {results_path}, skipping.")
+        return
+
+    print(f"\n  Evaluating arXiv MMLU STEM ({len(questions)} questions, mode={mode}) ...")
+    records = []
+    correct = 0
+
+    meta = []
+    prompts = []
+    for item in questions:
+        q_id = item["id"]
+        question = item["question"]
+        choices = item["choices"]
+        answer_idx = item["answer"]
+        options = {chr(65 + i): c for i, c in enumerate(choices)}
+
+        formatted_q = question + "\n" + " | ".join(choices)
+        query_vec = embedding_model.encode_query(formatted_q)
+
+        if mode == "no_rag":
+            chunks = []; selected_ids = []
+        elif mode == "rag_all":
+            chunks = retriever.retrieve(query_vec, sources)
+            selected_ids = [s.source_id for s in sources]
+        else:
+            selected = router.route(query_vec)
+            chunks = retriever.retrieve(query_vec, selected)
+            selected_ids = [s.source_id for s in selected]
+
+        prompts.append((MEDRAG_SYSTEM_PROMPT, build_user_prompt(question, options, chunks)))
+        meta.append({"q_id": q_id, "answer_idx": answer_idx, "selected_ids": selected_ids, "n_chunks": len(chunks)})
+
+    llm_outputs = call_llm_batch(prompts, llm_cfg)
+
+    for m, llm_output in zip(meta, llm_outputs):
+        is_correct = check_mmlu_answer(llm_output, m["answer_idx"])
+        if is_correct:
+            correct += 1
+        records.append({
+            "q_id": m["q_id"],
+            "correct": is_correct,
+            "selected_sources": m["selected_ids"],
+            "n_chunks": m["n_chunks"],
+        })
+
+    accuracy = correct / len(questions) * 100
+    print(f"  arXiv MMLU STEM: accuracy={accuracy:.2f}% ({correct}/{len(questions)})")
+
+    with open(results_path, "w") as f:
+        json.dump({"accuracy": accuracy, "n_correct": correct, "n_total": len(questions), "records": records}, f, indent=2)
+
+
 def evaluate_mmlu(
     cfg: Dict,
     mode: str,
@@ -382,13 +469,16 @@ def main():
     if dataset == "medrag":
         emb_dir = os.path.join(EMBEDDINGS_DIR, "mirage")
         sources = load_sources_medrag(emb_dir, STATS_DIR)
+    elif dataset == "arxiv":
+        emb_dir = os.path.join(EMBEDDINGS_DIR, "arxiv")
+        sources = load_sources_arxiv(emb_dir, STATS_DIR)
     else:
         emb_dir = os.path.join(EMBEDDINGS_DIR, "mmlu")
         sources = load_sources_mmlu(emb_dir, STATS_DIR)
 
     print(f"  Loaded {len(sources)} sources.")
 
-    # Embedding model
+    # Embedding model (arxiv uses same BGE encoder as wikipedia)
     embedding_model = EmbeddingModel(dataset=dataset)
 
     # Retriever
@@ -411,6 +501,8 @@ def main():
     # Evaluate
     if dataset == "medrag":
         evaluate_mirage(cfg, args.mode, sources, embedding_model, router, retriever, split_dict, results_dir)
+    elif dataset == "arxiv":
+        evaluate_arxiv(cfg, args.mode, sources, embedding_model, router, retriever, split_dict, results_dir)
     else:
         evaluate_mmlu(cfg, args.mode, sources, embedding_model, router, retriever, split_dict, results_dir)
 

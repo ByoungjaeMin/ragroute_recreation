@@ -110,22 +110,71 @@ def build_mmlu_index(emb_dir: str, stats_dir: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# arxiv (STEM extension experiment)
+# ---------------------------------------------------------------------------
+
+def build_arxiv_index(emb_dir: str, stats_dir: str) -> None:
+    """Mirror of build_mmlu_index() for the arXiv dataset.
+
+    Uses normalize_L2 + IndexFlatIP (same as wikipedia).
+    Stats saved as arxiv_cluster_stats.json (separate from cluster_stats.json).
+    """
+    os.makedirs(stats_dir, exist_ok=True)
+
+    cluster_stats = []
+
+    for c in range(10):
+        emb_path = os.path.join(emb_dir, f"cluster_{c}_embeddings.npy")
+        index_path = os.path.join(emb_dir, f"cluster_{c}_index.faiss")
+
+        if not os.path.exists(emb_path):
+            raise FileNotFoundError(
+                f"{emb_path} not found. Run 02_build_embeddings.py --dataset arxiv first."
+            )
+
+        embs = np.load(emb_path).astype(np.float32)
+        centroid = embs.mean(axis=0)
+
+        if not os.path.exists(index_path):
+            print(f"[arxiv] cluster {c}: normalizing + building IndexFlatIP for {embs.shape} ...")
+            embs_copy = embs.copy()
+            faiss.normalize_L2(embs_copy)
+            index = faiss.IndexFlatIP(embs_copy.shape[1])
+            index.add(embs_copy)
+            faiss.write_index(index, index_path)
+            print(f"[arxiv] cluster {c}: index={index.ntotal} vectors.")
+        else:
+            print(f"[arxiv] cluster {c}: index already exists, skipping build.")
+
+        cluster_stats.append({"centroid": centroid.tolist()})
+
+    stats_path = os.path.join(stats_dir, "arxiv_cluster_stats.json")
+    with open(stats_path, "w") as f:
+        json.dump(cluster_stats, f)
+    print(f"[arxiv] arxiv_cluster_stats.json saved ({len(cluster_stats)} entries).")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", required=True, choices=["medrag", "mmlu"])
+    parser.add_argument("--dataset", required=True, choices=["medrag", "mmlu", "arxiv"])
     args = parser.parse_args()
 
     if args.dataset == "medrag":
         emb_dir = os.path.join(EMBEDDINGS_DIR, "mirage")
         print(f"=== Building medrag indices → {emb_dir} ===")
         build_medrag_index(emb_dir, STATS_DIR)
-    else:
+    elif args.dataset == "mmlu":
         emb_dir = os.path.join(EMBEDDINGS_DIR, "mmlu")
         print(f"=== Building mmlu indices → {emb_dir} ===")
         build_mmlu_index(emb_dir, STATS_DIR)
+    else:
+        emb_dir = os.path.join(EMBEDDINGS_DIR, "arxiv")
+        print(f"=== Building arxiv indices → {emb_dir} ===")
+        build_arxiv_index(emb_dir, STATS_DIR)
 
     print("\nDone. Next: python scripts/04_generate_train_data.py --config experiments/...")
 

@@ -35,7 +35,7 @@ class DataSource:
             scores, indices = self.index.search(q, k)
             return scores[0], indices[0]
 
-        elif self.dataset == "wikipedia":
+        elif self.dataset in ("wikipedia", "arxiv"):
             # DEVIATION FROM ORIGINAL: normalize in-place on a copy to avoid mutating caller's array
             # Original: same logic, explicit copy required before faiss.normalize_L2
             # This impl: reshape + copy, then normalize, then search
@@ -45,7 +45,7 @@ class DataSource:
             return scores[0], indices[0]
 
         else:
-            raise ValueError(f"Unknown dataset '{self.dataset}'. Expected 'medrag' or 'wikipedia'.")
+            raise ValueError(f"Unknown dataset '{self.dataset}'. Expected 'medrag', 'wikipedia', or 'arxiv'.")
 
     @classmethod
     def from_files(
@@ -73,14 +73,14 @@ class DataSource:
             centroid = np.array(raw["centroid"], dtype=np.float32)
             size = raw["num_documents"]
 
-        elif dataset == "wikipedia":
+        elif dataset in ("wikipedia", "arxiv"):
             # raw is a list; index into it by cluster id
             cluster_id = int(source_id)
             centroid = np.array(raw[cluster_id]["centroid"], dtype=np.float32)
             size = len(chunks)
 
         else:
-            raise ValueError(f"Unknown dataset '{dataset}'. Expected 'medrag' or 'wikipedia'.")
+            raise ValueError(f"Unknown dataset '{dataset}'. Expected 'medrag', 'wikipedia', or 'arxiv'.")
 
         return cls(
             source_id=source_id,

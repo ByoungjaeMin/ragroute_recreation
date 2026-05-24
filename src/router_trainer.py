@@ -53,10 +53,10 @@ class RouterTrainer:
             y       (Q * N_sources,) float32
             row_qids list of q_id repeated N_sources times (for split masking)
         """
-        if dataset not in ("medrag", "wikipedia"):
+        if dataset not in ("medrag", "wikipedia", "arxiv"):
             raise ValueError(f"Unknown dataset '{dataset}'.")
 
-        reverse = dataset == "wikipedia"
+        reverse = dataset in ("wikipedia", "arxiv")
         all_source_ids = [src.source_id for src in sources]
 
         X_rows: List[np.ndarray] = []

@@ -87,6 +87,19 @@ def load_sources_mmlu(emb_dir: str, stats_dir: str) -> list[DataSource]:
     return sources
 
 
+def load_sources_arxiv(emb_dir: str, stats_dir: str) -> list[DataSource]:
+    sources = []
+    for c in range(10):
+        sources.append(DataSource.from_files(
+            source_id=str(c),
+            dataset="arxiv",
+            index_path=os.path.join(emb_dir, f"cluster_{c}_index.faiss"),
+            chunks_path=os.path.join(emb_dir, f"cluster_{c}_chunks.json"),
+            stats_path=os.path.join(stats_dir, "arxiv_cluster_stats.json"),
+        ))
+    return sources
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", required=True)
@@ -95,7 +108,7 @@ def main():
     with open(args.config, "r") as f:
         cfg = yaml.safe_load(f)
 
-    dataset = cfg["dataset"]                 # "medrag" or "wikipedia"
+    dataset = cfg["dataset"]                 # "medrag", "wikipedia", or "arxiv"
     out_dir = cfg["paths"]["processed_dir"]
     os.makedirs(out_dir, exist_ok=True)
 
@@ -108,6 +121,10 @@ def main():
         emb_dir = os.path.join(EMBEDDINGS_DIR, "mirage")
         sources = load_sources_medrag(emb_dir, STATS_DIR)
         benchmark_list = ["pubmedqa", "medqa", "bioasq", "medmcqa", "mmlu-med"]
+    elif dataset == "arxiv":
+        emb_dir = os.path.join(EMBEDDINGS_DIR, "arxiv")
+        sources = load_sources_arxiv(emb_dir, STATS_DIR)
+        benchmark_list = ["arxiv"]
     else:
         emb_dir = os.path.join(EMBEDDINGS_DIR, "mmlu")
         sources = load_sources_mmlu(emb_dir, STATS_DIR)
@@ -130,6 +147,11 @@ def main():
             all_q_ids.extend(ids)
             print(f"  {benchmark}: {len(ids)} queries")
         all_q_vecs = np.concatenate(all_q_vecs, axis=0)
+    elif dataset == "arxiv":
+        emb_path = os.path.join(emb_dir, "arxiv_query_embeddings.npy")
+        ids_path = os.path.join(emb_dir, "arxiv_query_ids.json")
+        all_q_vecs, all_q_ids = _load_query_embeddings(emb_path, ids_path)
+        print(f"  arxiv: {len(all_q_ids)} queries")
     else:
         emb_path = os.path.join(emb_dir, "mmlu_query_embeddings.npy")
         ids_path = os.path.join(emb_dir, "mmlu_query_ids.json")
