@@ -312,24 +312,19 @@ def build_arxiv_embeddings(out_dir: str) -> None:
     if not os.path.exists(arxiv_emb_path):
         print("[article] Loading arXiv abstracts ...")
         from datasets import load_dataset as hf_load
-        # ccdv/arxiv-summarization: ~203K arXiv papers, parquet-based (no custom script)
-        # Fields: article (full text), abstract
-        # Using abstract field as the retrieval chunk
-        ds_train = hf_load("ccdv/arxiv-summarization", "long", split="train", streaming=True)
-        ds_val   = hf_load("ccdv/arxiv-summarization", "long", split="validation", streaming=True)
+        # gfissore/arxiv-abstracts-2021: 2M arXiv papers, parquet-based, CC0
+        # Fields: abstract, categories (e.g. "cs.LG math.ST"), title, id, ...
+        ds = hf_load("gfissore/arxiv-abstracts-2021", split="train", streaming=True)
 
         all_chunks = []
         all_texts = []
-        max_docs = 210_000
-        for ds in [ds_train, ds_val]:
-            for item in tqdm(ds, desc="Loading arXiv abstracts"):
-                abstract = (item.get("abstract") or "").strip()
-                if not abstract:
-                    continue
-                all_chunks.append(abstract)
-                all_texts.append(abstract)
-                if len(all_texts) >= max_docs:
-                    break
+        max_docs = 500_000
+        for item in tqdm(ds, desc="Loading arXiv abstracts", total=max_docs):
+            abstract = (item.get("abstract") or "").strip()
+            if not abstract:
+                continue
+            all_chunks.append(abstract)
+            all_texts.append(abstract)
             if len(all_texts) >= max_docs:
                 break
 
